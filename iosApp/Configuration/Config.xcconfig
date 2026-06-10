@@ -1,0 +1,4 @@
+TEAM_ID=
+BUNDLE_ID=com.farmmanager
+APP_NAME=FarmManager
+FRAMEWORK_SEARCH_PATHS = $(inherited) $(SRCROOT)/../composeApp/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)

@@ -1,73 +1,87 @@
 # Farm Manager
 
-Android app for small-scale farmers to track **agriculture expenses**, **harvest**, **sales**, and **profit/loss per crop**—fully **offline** with a local database. The UI is built with **Jetpack Compose** and **Material Design 3**.
+Kotlin Multiplatform (KMP) farm management app for **Android** and **iOS**. Track agriculture expenses, harvest, sales, and profit/loss per crop—fully **offline** with a local Room database. UI is built with **Compose Multiplatform** and **Material Design 3**.
 
 **Repository:** [github.com/velsans/farms](https://github.com/velsans/farms)
 
+## Platforms
+
+| Platform | Module | Status |
+|----------|--------|--------|
+| Android | `:composeApp` | Full feature set |
+| iOS | `:composeApp` + `iosApp/` | UI + offline DB; file import/export stubs ready for native pickers |
+
 ## Features
 
-- **Agri module**
-  - **Dashboard** with month/year filters and profit/loss views
-  - **Crops** — sowing details, variety, field, area, season
-  - **Expenses** — categories (seed, fertilizer, labor, water irrigation, harvest management, etc.)
-  - **Harvest** — quantities and notes
-  - **Sales** — price per kg, income, buyer details
-  - **Reports** and share/export workflows
-- **Excel import & export** (Apache POI); merge import avoids wiping existing data when possible
-- **Share** exports via system sheet (e.g. WhatsApp) using `FileProvider`
-- **Module tabs** — Agri (active); **Goat** and **Chicken** placeholders for future expansion
-- **Back navigation** — from sub-screens returns to the Agri dashboard; from dashboard, back prompts to exit the app
-- **Adaptive launcher icon** with safe-zone foreground
+- **Agri module** — dashboard, crops, expenses, harvest, sales, reports
+- **Excel import/export** — merge import (no duplicate wipe); Apache POI on Android, Okio-based XLSX on iOS
+- **Share** exports via system sheet (WhatsApp, Files, etc.)
+- **Goat / Chicken** module placeholders for future expansion
+- **Back navigation** — sub-screens return to Agri dashboard; exit confirmation on dashboard
 
-## Tech stack
+## Architecture
 
-| Area | Technology |
-|------|------------|
-| UI | Jetpack Compose, Material 3 |
-| Architecture | MVI-style intents/effects, `FarmViewModel` |
-| DI | Hilt |
-| Database | Room (Kotlin + coroutines / Flow) |
-| Excel | Apache POI (`poi-ooxml`) |
-| Language | Kotlin **2.0**, Java **17** |
+```
+composeApp/
+├── commonMain/     Shared UI (Compose), ViewModel, Room, Koin, MVI
+├── androidMain/    MainActivity, Android file pickers, POI Excel
+└── iosMain/        MainViewController, iOS platform bridges, Okio Excel
+
+iosApp/             Xcode shell linking ComposeApp.framework
+```
+
+| Layer | Technology |
+|-------|------------|
+| UI | Compose Multiplatform, Material 3 |
+| State | MVI-style `FarmIntent` / `FarmViewModel` |
+| DI | Koin (replaces Hilt for KMP) |
+| Database | Room 2.7 + SQLite bundled driver |
+| Excel | Apache POI (Android), Okio XLSX (iOS) |
 
 ## Requirements
 
-- **Android Studio** (recommended) or compatible Gradle + Android SDK
-- **JDK 17** (Android Studio’s bundled JBR is fine)
-- **compileSdk 35**, **minSdk 26**, **targetSdk 35**
+- **Android Studio** Ladybug or newer (recommended)
+- **JDK 17**
+- **Xcode 15+** (for iOS)
+- **compileSdk 35**, **minSdk 26**
 
 ## Build & run
 
-From the project root:
+### Android
 
 ```bash
-./gradlew assembleDebug
+./gradlew :composeApp:assembleDebug
 ```
 
-Install the debug APK on a device or emulator, or use **Run** in Android Studio.
+Run **composeApp** from Android Studio, or install the debug APK.
 
-If `java` is not on your `PATH`, point Gradle at the IDE JDK, for example:
+If `java` is not on your PATH:
 
 ```bash
 export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
-./gradlew assembleDebug
+./gradlew :composeApp:assembleDebug
 ```
 
-## Project layout (overview)
+### iOS
 
-```
-app/src/main/java/com/farmmanager/
-├── MainActivity.kt          # Compose UI, navigation, dialogs, back handling
-├── FarmViewModel.kt         # State, intents, repository + Excel use cases
-├── FarmMvi.kt               # FarmIntent / FarmEffect definitions
-├── di/AppModule.kt          # Hilt: DB, DAO, repository, Excel manager
-├── data/                    # Room entities, DAO, repository
-├── export/                  # Excel import/export
-└── ui/                      # Theme, Agri submenu screens
+1. Build the Kotlin framework:
+
+```bash
+./gradlew :composeApp:linkDebugFrameworkIosSimulatorArm64
 ```
 
-Strings and dimensions live under `app/src/main/res/values/` (`strings.xml`, `dimens.xml`).
+2. Open `iosApp/iosApp.xcodeproj` in Xcode.
+3. Set your **Team ID** in `iosApp/Configuration/Config.xcconfig` if needed.
+4. Run on a simulator or device.
+
+Gradle embeds the `ComposeApp` framework automatically via the Xcode build phase script.
+
+## Project notes
+
+- The legacy `app/` folder is kept for reference; **`:composeApp`** is the active application module.
+- Shared strings live in `composeApp/src/commonMain/composeResources/values/strings.xml`.
+- Platform file actions use `PlatformUiActions` (Android document pickers) and `PlatformFileHandler` (read/write/share bytes).
 
 ## License
 
-No license file is bundled in this repository. Add one (for example MIT or Apache-2.0) if you intend to distribute or accept contributions.
+No license file is bundled. Add one (e.g. MIT or Apache-2.0) if you plan to distribute the project.

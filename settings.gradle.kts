@@ -24,4 +24,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "FarmManager"
-include(":app")
+include(":composeApp")

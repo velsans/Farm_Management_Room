@@ -1,13 +1,5 @@
 package com.farmmanager
 
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.compose.BackHandler
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.viewModels
-import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,8 +13,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,15 +29,17 @@ import androidx.compose.material.icons.filled.Agriculture
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.EggAlt
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.Grass
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Pets
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material.icons.filled.Spa
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -74,43 +74,37 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.res.stringArrayResource
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import com.farmmanager.data.CropEntity
 import com.farmmanager.data.CropSummary
 import com.farmmanager.data.ExpenseEntity
 import com.farmmanager.data.FarmSnapshot
 import com.farmmanager.data.HarvestEntity
 import com.farmmanager.data.SaleEntity
+import com.farmmanager.platform.PlatformUiActions
+import com.farmmanager.ui.AppDimens
 import com.farmmanager.ui.FarmTheme
 import com.farmmanager.ui.agri.CropsScreen
 import com.farmmanager.ui.agri.ExpensesScreen
 import com.farmmanager.ui.agri.HarvestScreen
 import com.farmmanager.ui.agri.ReportsScreen
 import com.farmmanager.ui.agri.SalesScreen
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import farmmanager.composeapp.generated.resources.Res
+import farmmanager.composeapp.generated.resources.*
+import org.jetbrains.compose.resources.StringResource
+import org.jetbrains.compose.resources.stringResource
+import com.farmmanager.util.currentMonthNumber
+import com.farmmanager.util.currentYearKey
+import com.farmmanager.platform.PlatformBackHandler
+import com.farmmanager.util.currentMonthNumber
+import com.farmmanager.util.currentYearKey
+import com.farmmanager.util.exportTimestamp
+import com.farmmanager.util.today
 
-@AndroidEntryPoint
-class MainActivity : ComponentActivity() {
-    private val viewModel: FarmViewModel by viewModels()
-
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            FarmTheme {
-                FarmApp(viewModel)
-            }
-        }
-    }
-}
+private val expenseCategories = listOf("Seed", "Fertilizer", "Labor", "Water Irrigation Labor", "Harvest Management", "Other")
+private const val expenseCategorySeed = "Seed"
 
 data class FarmUiState(
     val crops: List<CropEntity> = emptyList(),
@@ -151,13 +145,13 @@ fun FarmSnapshot.onlySection(section: DataSection): FarmSnapshot =
         DataSection.Sales -> copy(expenses = emptyList(), harvests = emptyList())
     }
 
-enum class FarmTab(@StringRes val labelRes: Int, val icon: ImageVector, val color: Color, val containerColor: Color) {
-    Dashboard(R.string.tab_dashboard, Icons.Default.Home, Color(0xFF1565C0), Color(0xFFBBDEFB)),
-    Crops(R.string.tab_crops, Icons.Default.Spa, Color(0xFF2E7D32), Color(0xFFC8E6C9)),
-    Expenses(R.string.tab_expenses, Icons.Default.Payments, Color(0xFFC62828), Color(0xFFFFCDD2)),
-    Harvest(R.string.tab_harvest, Icons.Default.Agriculture, Color(0xFFEF6C00), Color(0xFFFFE0B2)),
-    Sales(R.string.tab_sales, Icons.Default.ShoppingCart, Color(0xFF6A1B9A), Color(0xFFE1BEE7)),
-    Reports(R.string.tab_reports, Icons.Default.Assessment, Color(0xFF00695C), Color(0xFFB2DFDB)),
+enum class FarmTab(val labelRes: StringResource, val icon: ImageVector, val color: Color, val containerColor: Color) {
+    Dashboard(Res.string.tab_dashboard, Icons.Default.Home, Color(0xFF1565C0), Color(0xFFBBDEFB)),
+    Crops(Res.string.tab_crops, Icons.Default.Spa, Color(0xFF2E7D32), Color(0xFFC8E6C9)),
+    Expenses(Res.string.tab_expenses, Icons.Default.Payments, Color(0xFFC62828), Color(0xFFFFCDD2)),
+    Harvest(Res.string.tab_harvest, Icons.Default.Agriculture, Color(0xFFEF6C00), Color(0xFFFFE0B2)),
+    Sales(Res.string.tab_sales, Icons.Default.ShoppingCart, Color(0xFF6A1B9A), Color(0xFFE1BEE7)),
+    Reports(Res.string.tab_reports, Icons.Default.Assessment, Color(0xFF00695C), Color(0xFFB2DFDB)),
 }
 
 enum class DataSection(val label: String, val filePrefix: String, val tab: FarmTab) {
@@ -167,10 +161,10 @@ enum class DataSection(val label: String, val filePrefix: String, val tab: FarmT
     Sales("Sales", "Farm_Sales", FarmTab.Sales),
 }
 
-enum class FarmModuleTab(@StringRes val labelRes: Int, @StringRes val titleRes: Int, @StringRes val subtitleRes: Int, val icon: ImageVector) {
-    Agri(R.string.module_agri, R.string.module_agri_title, R.string.module_agri_subtitle, Icons.Default.Agriculture),
-    Goat(R.string.module_goat, R.string.module_goat_title, R.string.module_goat_subtitle, Icons.Default.Pets),
-    Chicken(R.string.module_chicken, R.string.module_chicken_title, R.string.module_chicken_subtitle, Icons.Default.EggAlt),
+enum class FarmModuleTab(val labelRes: StringResource, val titleRes: StringResource, val subtitleRes: StringResource, val icon: ImageVector) {
+    Agri(Res.string.module_agri, Res.string.module_agri_title, Res.string.module_agri_subtitle, Icons.Default.Agriculture),
+    Goat(Res.string.module_goat, Res.string.module_goat_title, Res.string.module_goat_subtitle, Icons.Default.Pets),
+    Chicken(Res.string.module_chicken, Res.string.module_chicken_title, Res.string.module_chicken_subtitle, Icons.Default.EggAlt),
 }
 
 data class MonthOption(val number: Int?, val label: String)
@@ -226,9 +220,11 @@ fun FarmModuleTab.themeColors(): ModuleThemeColors =
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun FarmApp(viewModel: FarmViewModel) {
+fun FarmApp(
+    viewModel: FarmViewModel,
+    platformUiActions: PlatformUiActions,
+) {
     val state by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
     var dialog by remember { mutableStateOf<FarmTab?>(null) }
     var editingCrop by remember { mutableStateOf<CropEntity?>(null) }
@@ -238,32 +234,9 @@ fun FarmApp(viewModel: FarmViewModel) {
     var selectedModule by remember { mutableStateOf(FarmModuleTab.Agri) }
     var selectedAgriTab by remember { mutableStateOf(FarmTab.Dashboard) }
     var showExitDialog by remember { mutableStateOf(false) }
-    val activity = LocalContext.current as? ComponentActivity
     val moduleTheme = selectedModule.themeColors()
     var pendingExportSection by remember { mutableStateOf<DataSection?>(null) }
     var pendingImportSection by remember { mutableStateOf<DataSection?>(null) }
-    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
-        uri?.let {
-            val section = pendingExportSection
-            if (section == null) {
-                viewModel.onIntent(FarmIntent.ExportAll(context, it))
-            } else {
-                viewModel.onIntent(FarmIntent.ExportSection(context, it, section))
-            }
-        }
-        pendingExportSection = null
-    }
-    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let {
-            val section = pendingImportSection
-            if (section == null) {
-                viewModel.onIntent(FarmIntent.ImportAll(context, it))
-            } else {
-                viewModel.onIntent(FarmIntent.ImportSection(context, it, section))
-            }
-        }
-        pendingImportSection = null
-    }
 
     LaunchedEffect(viewModel.statusMessage) {
         viewModel.statusMessage?.let {
@@ -273,7 +246,7 @@ fun FarmApp(viewModel: FarmViewModel) {
     }
 
     val atAgriDashboard = selectedModule == FarmModuleTab.Agri && selectedAgriTab == FarmTab.Dashboard
-    BackHandler(enabled = true) {
+    PlatformBackHandler(enabled = true) {
         when {
             showExitDialog -> showExitDialog = false
             dialog != null -> dialog = null
@@ -292,19 +265,19 @@ fun FarmApp(viewModel: FarmViewModel) {
     if (showExitDialog) {
         AlertDialog(
             onDismissRequest = { showExitDialog = false },
-            title = { Text(stringResource(R.string.exit_app_title)) },
-            text = { Text(stringResource(R.string.exit_app_message)) },
+            title = { Text(stringResource(Res.string.exit_app_title)) },
+            text = { Text(stringResource(Res.string.exit_app_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showExitDialog = false
-                        activity?.finishAffinity()
+                        platformUiActions.exitApp()
                     },
-                ) { Text(stringResource(R.string.exit_app_confirm)) }
+                ) { Text(stringResource(Res.string.exit_app_confirm)) }
             },
             dismissButton = {
                 TextButton(onClick = { showExitDialog = false }) {
-                    Text(stringResource(R.string.exit_app_cancel))
+                    Text(stringResource(Res.string.exit_app_cancel))
                 }
             },
         )
@@ -313,7 +286,7 @@ fun FarmApp(viewModel: FarmViewModel) {
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(Res.string.app_name), fontWeight = FontWeight.Bold) },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = moduleTheme.primaryContainer,
                     titleContentColor = moduleTheme.onPrimaryContainer,
@@ -323,9 +296,9 @@ fun FarmApp(viewModel: FarmViewModel) {
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
             if (selectedModule == FarmModuleTab.Agri && selectedAgriTab == FarmTab.Dashboard) {
-                Row(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12))) {
+                Row(horizontalArrangement = Arrangement.spacedBy(AppDimens.space12)) {
                     BottomDataActionButton(
-                        label = stringResource(R.string.action_import),
+                        label = stringResource(Res.string.action_import),
                         icon = Icons.Default.UploadFile,
                         buttonColor = Color(0xFF1B5E20),
                         iconBackgroundColor = Color(0xFF0B3D0E),
@@ -333,11 +306,13 @@ fun FarmApp(viewModel: FarmViewModel) {
                         contentColor = Color.White,
                         onClick = {
                             pendingImportSection = null
-                            importLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                            platformUiActions.launchImport { uri ->
+                                uri?.let { viewModel.onIntent(FarmIntent.ImportAll(it)) }
+                            }
                         },
                     )
                     BottomDataActionButton(
-                        label = stringResource(R.string.action_export),
+                        label = stringResource(Res.string.action_export),
                         icon = Icons.Default.FileDownload,
                         buttonColor = Color(0xFF263238),
                         iconBackgroundColor = Color(0xFF11171A),
@@ -345,7 +320,9 @@ fun FarmApp(viewModel: FarmViewModel) {
                         contentColor = Color.White,
                         onClick = {
                             pendingExportSection = null
-                            exportLauncher.launch("Farm_Manager_Data.xlsx")
+                            platformUiActions.launchExport("Farm_Manager_Data.xlsx") { uri ->
+                                uri?.let { viewModel.onIntent(FarmIntent.ExportAll(it)) }
+                            }
                         },
                     )
                 }
@@ -362,15 +339,19 @@ fun FarmApp(viewModel: FarmViewModel) {
                 },
                 selectedAgriTab = selectedAgriTab,
                 onAgriTabSelected = { selectedAgriTab = it },
-                onShare = { viewModel.onIntent(FarmIntent.ShareExcel(context)) },
+                onShare = { viewModel.onIntent(FarmIntent.ShareExcel) },
                 onAdd = { dialog = it },
-                onImportSection = {
-                    pendingImportSection = it
-                    importLauncher.launch(arrayOf("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                onImportSection = { section ->
+                    pendingImportSection = section
+                    platformUiActions.launchImport { uri ->
+                        uri?.let { viewModel.onIntent(FarmIntent.ImportSection(it, section)) }
+                    }
                 },
-                onExportSection = {
-                    pendingExportSection = it
-                    exportLauncher.launch("${it.filePrefix}.xlsx")
+                onExportSection = { section ->
+                    pendingExportSection = section
+                    platformUiActions.launchExport("${section.filePrefix}.xlsx") { uri ->
+                        uri?.let { viewModel.onIntent(FarmIntent.ExportSection(it, section)) }
+                    }
                 },
                 onEditCrop = { editingCrop = it },
                 onEditExpense = { editingExpense = it },
@@ -455,7 +436,7 @@ fun DashboardScreen(
             selectedModule = selectedModule,
             onSelected = onModuleSelected,
             theme = moduleTheme,
-            modifier = Modifier.padding(dimensionResource(R.dimen.space_20)),
+            modifier = Modifier.padding(AppDimens.space20),
         )
         when (selectedModule) {
             FarmModuleTab.Agri -> AgriDashboardTabs(
@@ -474,8 +455,8 @@ fun DashboardScreen(
             )
             FarmModuleTab.Goat -> LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = dimensionResource(R.dimen.space_20), end = dimensionResource(R.dimen.space_20), bottom = dimensionResource(R.dimen.space_20)),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_16)),
+                contentPadding = PaddingValues(start = AppDimens.space20, end = AppDimens.space20, bottom = AppDimens.space20),
+                verticalArrangement = Arrangement.spacedBy(AppDimens.space16),
             ) {
                 futureModuleDashboardItems(
                     module = FarmModuleTab.Goat,
@@ -484,8 +465,8 @@ fun DashboardScreen(
             }
             FarmModuleTab.Chicken -> LazyColumn(
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(start = dimensionResource(R.dimen.space_20), end = dimensionResource(R.dimen.space_20), bottom = dimensionResource(R.dimen.space_20)),
-                verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_16)),
+                contentPadding = PaddingValues(start = AppDimens.space20, end = AppDimens.space20, bottom = AppDimens.space20),
+                verticalArrangement = Arrangement.spacedBy(AppDimens.space16),
             ) {
                 futureModuleDashboardItems(
                     module = FarmModuleTab.Chicken,
@@ -519,15 +500,15 @@ fun AgriDashboardTabs(
             selectedTab = selectedAgriTab,
             onSelected = onAgriTabSelected,
             theme = theme,
-            modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.space_30)),
+            modifier = Modifier.padding(horizontal = AppDimens.space30),
         )
-        Spacer(Modifier.height(dimensionResource(R.dimen.space_5)))
+        Spacer(Modifier.height(AppDimens.space5))
 
         Box(Modifier.weight(1f)) {
             when (selectedAgriTab) {
                 FarmTab.Dashboard -> LazyColumn(
-                    contentPadding = PaddingValues(start = dimensionResource(R.dimen.space_20), end = dimensionResource(R.dimen.space_20), bottom = dimensionResource(R.dimen.space_20)),
-                    verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_16)),
+                    contentPadding = PaddingValues(start = AppDimens.space20, end = AppDimens.space20, bottom = AppDimens.space20),
+                    verticalArrangement = Arrangement.spacedBy(AppDimens.space16),
                 ) {
                     agricultureDashboardItems(
                         state = state,
@@ -553,9 +534,9 @@ fun AgriDashboardTabs(
                     contentColor = Color.White,
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(end = dimensionResource(R.dimen.space_20), bottom = dimensionResource(R.dimen.space_92)),
+                        .padding(end = AppDimens.space20, bottom = AppDimens.space92),
                 ) {
-                    Icon(Icons.Default.Add, contentDescription = stringResource(R.string.action_add_content_description, stringResource(selectedAgriTab.labelRes)))
+                    Icon(Icons.Default.Add, contentDescription = stringResource(Res.string.action_add_content_description, stringResource(selectedAgriTab.labelRes)))
                 }
             }
         }
@@ -575,7 +556,7 @@ fun LazyListScope.agricultureDashboardItems(
     val selectedPeriodProfitLoss = state.profitLossForPeriod(selectedYear, selectedMonth)
     item {
         ProfitPeriodFilterCard(
-            title = stringResource(R.string.search_profit_loss),
+            title = stringResource(Res.string.search_profit_loss),
             selectedMonth = selectedMonth,
             selectedYear = selectedYear,
             years = state.availableYears,
@@ -587,23 +568,23 @@ fun LazyListScope.agricultureDashboardItems(
     item {
         val periodLabel = periodLabel(selectedMonth, selectedYear)
         HeroCard(
-            title = stringResource(R.string.profit_loss_title_format, periodLabel),
+            title = stringResource(Res.string.profit_loss_title_format, periodLabel),
             value = rupees(selectedPeriodProfitLoss),
-            subtitle = stringResource(R.string.profit_loss_subtitle_format, rupees(state.profitLoss), state.crops.size, formatKg(state.harvestedKg)),
+            subtitle = stringResource(Res.string.profit_loss_subtitle_format, rupees(state.profitLoss), state.crops.size, formatKg(state.harvestedKg)),
             colors = theme.gradient,
         )
     }
     item {
-        Row(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12)), modifier = Modifier.fillMaxWidth()) {
-            MetricCard(stringResource(R.string.expenses_metric), rupees(state.totalExpense), Icons.Default.WaterDrop, Modifier.weight(1f), onClick = { onNavigate(FarmTab.Expenses) })
-            MetricCard(stringResource(R.string.sales_metric), rupees(state.totalIncome), Icons.Default.ShoppingCart, Modifier.weight(1f), onClick = { onNavigate(FarmTab.Sales) })
+        Row(horizontalArrangement = Arrangement.spacedBy(AppDimens.space12), modifier = Modifier.fillMaxWidth()) {
+            MetricCard(stringResource(Res.string.expenses_metric), rupees(state.totalExpense), Icons.Default.WaterDrop, Modifier.weight(1f), onClick = { onNavigate(FarmTab.Expenses) })
+            MetricCard(stringResource(Res.string.sales_metric), rupees(state.totalIncome), Icons.Default.ShoppingCart, Modifier.weight(1f), onClick = { onNavigate(FarmTab.Sales) })
         }
     }
     item {
         OutlinedButton(onClick = onShare, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Share, null)
-            Spacer(Modifier.size(dimensionResource(R.dimen.space_8)))
-            Text(stringResource(R.string.action_share_excel_external))
+            Spacer(Modifier.size(AppDimens.space8))
+            Text(stringResource(Res.string.action_share_excel_external))
         }
     }
 }
@@ -619,11 +600,11 @@ fun ProfitPeriodFilterCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = theme.surface),
-        shape = RoundedCornerShape(dimensionResource(R.dimen.radius_xlarge)),
+        shape = RoundedCornerShape(AppDimens.radiusXLarge),
     ) {
-        Column(Modifier.padding(dimensionResource(R.dimen.space_14)), verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_14))) {
+        Column(Modifier.padding(AppDimens.space14), verticalArrangement = Arrangement.spacedBy(AppDimens.space14)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = theme.primary)
-            Row(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12)), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AppDimens.space12), modifier = Modifier.fillMaxWidth()) {
                 MonthDropdown(
                     selectedMonth = selectedMonth,
                     onSelected = onMonthSelected,
@@ -645,7 +626,7 @@ fun ProfitPeriodFilterCard(
 @Composable
 fun MonthDropdown(selectedMonth: Int?, onSelected: (Int?) -> Unit, theme: ModuleThemeColors, modifier: Modifier = Modifier) {
     var expanded by remember { mutableStateOf(false) }
-    val selectedLabel = MonthOptions.firstOrNull { it.number == selectedMonth }?.label ?: stringResource(R.string.month_placeholder)
+    val selectedLabel = MonthOptions.firstOrNull { it.number == selectedMonth }?.label ?: stringResource(Res.string.month_placeholder)
 
     Box(modifier) {
         OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
@@ -699,11 +680,11 @@ fun SectionToolsCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = theme.surface),
-        shape = RoundedCornerShape(dimensionResource(R.dimen.radius_xlarge)),
+        shape = RoundedCornerShape(AppDimens.radiusXLarge),
     ) {
-        Column(Modifier.padding(dimensionResource(R.dimen.space_12)), verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12))) {
+        Column(Modifier.padding(AppDimens.space12), verticalArrangement = Arrangement.spacedBy(AppDimens.space12)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = theme.primary)
-            Row(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12)), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(AppDimens.space12), modifier = Modifier.fillMaxWidth()) {
                 MonthDropdown(selectedMonth, onMonthSelected, theme, Modifier.weight(1f))
                 YearDropdown(selectedYear, years, onYearSelected, theme, Modifier.weight(1f))
             }
@@ -726,18 +707,18 @@ fun BottomDataActionButton(
         onClick = onClick,
         containerColor = buttonColor,
         contentColor = contentColor,
-        shape = RoundedCornerShape(dimensionResource(R.dimen.radius_medium)),
+        shape = RoundedCornerShape(AppDimens.radiusMedium),
     ) {
 
         Row(
-            modifier = Modifier.padding(horizontal = dimensionResource(R.dimen.space_14)),
+            modifier = Modifier.padding(horizontal = AppDimens.space14),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_6)),
+            horizontalArrangement = Arrangement.spacedBy(AppDimens.space6),
         ) {
 
             Box(
                 modifier = Modifier
-                    .size(dimensionResource(R.dimen.icon_container))
+                    .size(AppDimens.iconContainer)
                     .background(
                         color = iconBackgroundColor,
                         shape = CircleShape
@@ -748,7 +729,7 @@ fun BottomDataActionButton(
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    modifier = Modifier.size(dimensionResource(R.dimen.icon_small)),
+                    modifier = Modifier.size(AppDimens.iconSmall),
                     tint = iconTint
                 )
             }
@@ -760,21 +741,21 @@ fun LazyListScope.futureModuleDashboardItems(module: FarmModuleTab, theme: Modul
     item {
         HeroCard(
             title = stringResource(module.titleRes),
-            value = stringResource(R.string.coming_soon),
+            value = stringResource(Res.string.coming_soon),
             subtitle = stringResource(module.subtitleRes),
             colors = theme.gradient,
         )
     }
     item {
-        Row(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12)), modifier = Modifier.fillMaxWidth()) {
-            MetricCard(stringResource(R.string.expenses_metric), stringResource(R.string.zero_rupees), Icons.Default.WaterDrop, Modifier.weight(1f))
-            MetricCard(stringResource(R.string.sales_metric), stringResource(R.string.zero_rupees), Icons.Default.ShoppingCart, Modifier.weight(1f))
+        Row(horizontalArrangement = Arrangement.spacedBy(AppDimens.space12), modifier = Modifier.fillMaxWidth()) {
+            MetricCard(stringResource(Res.string.expenses_metric), stringResource(Res.string.zero_rupees), Icons.Default.WaterDrop, Modifier.weight(1f))
+            MetricCard(stringResource(Res.string.sales_metric), stringResource(Res.string.zero_rupees), Icons.Default.ShoppingCart, Modifier.weight(1f))
         }
     }
     item {
         ModuleFeatureCard(
-            title = stringResource(R.string.future_module_title, stringResource(module.labelRes)),
-            subtitle = stringResource(R.string.future_module_subtitle),
+            title = stringResource(Res.string.future_module_title, stringResource(module.labelRes)),
+            subtitle = stringResource(Res.string.future_module_subtitle),
             theme = theme,
         )
     }
@@ -789,7 +770,7 @@ fun FarmModuleTabs(
 ) {
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(dimensionResource(R.dimen.radius_large)),
+        shape = RoundedCornerShape(AppDimens.radiusLarge),
         colors = CardDefaults.cardColors(containerColor = theme.surface),
     ) {
         TabRow(selectedTabIndex = selectedModule.ordinal, containerColor = Color.Transparent, contentColor = theme.primary) {
@@ -816,7 +797,7 @@ fun AgriNavigationTabs(
     modifier: Modifier = Modifier,
 ) {
     Row(
-        horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_6), Alignment.CenterHorizontally),
+        horizontalArrangement = Arrangement.spacedBy(AppDimens.space6, Alignment.CenterHorizontally),
         modifier = modifier.fillMaxWidth(),
     ) {
         FarmTab.entries.forEach { tab ->
@@ -844,20 +825,20 @@ fun AgriMenuIcon(
 
     Card(
         onClick = onClick,
-        modifier = modifier.height(dimensionResource(R.dimen.submenu_height)),
-        shape = RoundedCornerShape(dimensionResource(R.dimen.radius_small)),
+        modifier = modifier.height(AppDimens.submenuHeight),
+        shape = RoundedCornerShape(AppDimens.radiusSmall),
         colors = CardDefaults.cardColors(containerColor = containerColor, contentColor = contentColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) dimensionResource(R.dimen.space_6) else dimensionResource(R.dimen.space_2)),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (selected) AppDimens.space6 else AppDimens.space2),
     ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(dimensionResource(R.dimen.space_4)),
+                .padding(AppDimens.space4),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            Icon(tab.icon, contentDescription = stringResource(tab.labelRes), modifier = Modifier.size(dimensionResource(R.dimen.icon_medium)), tint = tab.color)
-            Spacer(Modifier.height(dimensionResource(R.dimen.space_3)))
+            Icon(tab.icon, contentDescription = stringResource(tab.labelRes), modifier = Modifier.size(AppDimens.iconMedium), tint = tab.color)
+            Spacer(Modifier.height(AppDimens.space3))
             Text(
                 text = stringResource(tab.labelRes),
                 style = MaterialTheme.typography.labelSmall,
@@ -873,7 +854,7 @@ fun AgriMenuIcon(
 @Composable
 fun ModuleFeatureCard(title: String, subtitle: String, theme: ModuleThemeColors) {
     Card(colors = CardDefaults.cardColors(containerColor = theme.primaryContainer, contentColor = theme.onPrimaryContainer)) {
-        Column(Modifier.padding(dimensionResource(R.dimen.space_16)), verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_8))) {
+        Column(Modifier.padding(AppDimens.space16), verticalArrangement = Arrangement.spacedBy(AppDimens.space8)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text(subtitle, color = theme.onPrimaryContainer.copy(alpha = 0.78f))
         }
@@ -890,17 +871,17 @@ fun SectionTotalCard(
 ) {
     Card(
         colors = CardDefaults.cardColors(containerColor = tab.containerColor, contentColor = tab.color),
-        shape = RoundedCornerShape(dimensionResource(R.dimen.radius_large)),
+        shape = RoundedCornerShape(AppDimens.radiusLarge),
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(dimensionResource(R.dimen.space_14)),
+                .padding(AppDimens.space14),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12)),
+            horizontalArrangement = Arrangement.spacedBy(AppDimens.space12),
         ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(dimensionResource(R.dimen.icon_large)))
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2))) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(AppDimens.iconLarge))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppDimens.space2)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                 Text(primaryValue, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
             }
@@ -917,38 +898,38 @@ fun CropDialog(initial: CropEntity? = null, onDismiss: () -> Unit, onSave: (Crop
     var area by remember(initial) { mutableStateOf(initial?.area?.toString().orEmpty()) }
     var season by remember(initial) { mutableStateOf(initial?.season.orEmpty()) }
     val date = initial?.sowingDate ?: today()
-    FormDialog(if (initial == null) stringResource(R.string.dialog_add_crop) else stringResource(R.string.dialog_edit_crop), onDismiss, onConfirm = {
+    FormDialog(if (initial == null) stringResource(Res.string.dialog_add_crop) else stringResource(Res.string.dialog_edit_crop), onDismiss, onConfirm = {
         onSave(CropEntity(id = initial?.id ?: 0, name = name, variety = variety, fieldName = field, area = area.toDoubleOrZero(), season = season, sowingDate = date, notes = initial?.notes.orEmpty()))
     }) {
-        AppTextField(name, { name = it }, stringResource(R.string.field_crop_name))
-        AppTextField(variety, { variety = it }, stringResource(R.string.field_variety))
-        AppTextField(field, { field = it }, stringResource(R.string.field_field_name))
-        AppTextField(area, { area = it }, stringResource(R.string.field_area_acres))
-        AppTextField(season, { season = it }, stringResource(R.string.field_season))
-        ReadOnlyTextField(date, stringResource(R.string.field_sowing_date))
+        AppTextField(name, { name = it }, stringResource(Res.string.field_crop_name))
+        AppTextField(variety, { variety = it }, stringResource(Res.string.field_variety))
+        AppTextField(field, { field = it }, stringResource(Res.string.field_field_name))
+        AppTextField(area, { area = it }, stringResource(Res.string.field_area_acres))
+        AppTextField(season, { season = it }, stringResource(Res.string.field_season))
+        ReadOnlyTextField(date, stringResource(Res.string.field_sowing_date))
     }
 }
 
 @Composable
 fun ExpenseDialog(crops: List<CropEntity>, initial: ExpenseEntity? = null, onDismiss: () -> Unit, onSave: (ExpenseEntity) -> Unit) {
-    val defaultCategory = stringResource(R.string.expense_category_seed)
+    val defaultCategory = stringResource(Res.string.expense_category_seed)
     var crop by remember(initial, crops) { mutableStateOf(crops.firstOrNull { it.id == initial?.cropId } ?: crops.firstOrNull()) }
     var category by remember(initial) { mutableStateOf(initial?.category ?: defaultCategory) }
     var round by remember(initial) { mutableStateOf(initial?.applicationRound?.toString().orEmpty()) }
     var amount by remember(initial) { mutableStateOf(initial?.amount?.toString().orEmpty()) }
     val date = initial?.expenseDate ?: today()
     var notes by remember(initial) { mutableStateOf(initial?.notes.orEmpty()) }
-    FormDialog(if (initial == null) stringResource(R.string.dialog_add_expense) else stringResource(R.string.dialog_edit_expense), onDismiss, onConfirm = {
+    FormDialog(if (initial == null) stringResource(Res.string.dialog_add_expense) else stringResource(Res.string.dialog_edit_expense), onDismiss, onConfirm = {
         crop?.let {
             onSave(ExpenseEntity(id = initial?.id ?: 0, cropId = it.id, category = category, applicationRound = round.toIntOrNull(), amount = amount.toDoubleOrZero(), expenseDate = date, notes = notes))
         }
     }) {
         CropSelector(crops, crop) { crop = it }
         CategorySelector(category) { category = it }
-        AppTextField(round, { round = it }, stringResource(R.string.field_application_round))
-        AppTextField(amount, { amount = it }, stringResource(R.string.field_amount))
-        ReadOnlyTextField(date, stringResource(R.string.field_expense_date))
-        AppTextField(notes, { notes = it }, stringResource(R.string.field_notes))
+        AppTextField(round, { round = it }, stringResource(Res.string.field_application_round))
+        AppTextField(amount, { amount = it }, stringResource(Res.string.field_amount))
+        ReadOnlyTextField(date, stringResource(Res.string.field_expense_date))
+        AppTextField(notes, { notes = it }, stringResource(Res.string.field_notes))
     }
 }
 
@@ -958,13 +939,13 @@ fun HarvestDialog(crops: List<CropEntity>, initial: HarvestEntity? = null, onDis
     var kg by remember(initial) { mutableStateOf(initial?.quantityKg?.toString().orEmpty()) }
     val date = initial?.harvestDate ?: today()
     var notes by remember(initial) { mutableStateOf(initial?.managementNotes.orEmpty()) }
-    FormDialog(if (initial == null) stringResource(R.string.dialog_add_harvest) else stringResource(R.string.dialog_edit_harvest), onDismiss, onConfirm = {
+    FormDialog(if (initial == null) stringResource(Res.string.dialog_add_harvest) else stringResource(Res.string.dialog_edit_harvest), onDismiss, onConfirm = {
         crop?.let { onSave(HarvestEntity(id = initial?.id ?: 0, cropId = it.id, harvestDate = date, quantityKg = kg.toDoubleOrZero(), managementNotes = notes)) }
     }) {
         CropSelector(crops, crop) { crop = it }
-        AppTextField(kg, { kg = it }, stringResource(R.string.field_harvest_quantity))
-        ReadOnlyTextField(date, stringResource(R.string.field_harvest_date))
-        AppTextField(notes, { notes = it }, stringResource(R.string.field_management_notes))
+        AppTextField(kg, { kg = it }, stringResource(Res.string.field_harvest_quantity))
+        ReadOnlyTextField(date, stringResource(Res.string.field_harvest_date))
+        AppTextField(notes, { notes = it }, stringResource(Res.string.field_management_notes))
     }
 }
 
@@ -976,15 +957,15 @@ fun SaleDialog(crops: List<CropEntity>, initial: SaleEntity? = null, onDismiss: 
     var buyer by remember(initial) { mutableStateOf(initial?.buyerName.orEmpty()) }
     var phone by remember(initial) { mutableStateOf(initial?.buyerPhone.orEmpty()) }
     val date = initial?.saleDate ?: today()
-    FormDialog(if (initial == null) stringResource(R.string.dialog_add_sale) else stringResource(R.string.dialog_edit_sale), onDismiss, onConfirm = {
+    FormDialog(if (initial == null) stringResource(Res.string.dialog_add_sale) else stringResource(Res.string.dialog_edit_sale), onDismiss, onConfirm = {
         crop?.let { onSave(SaleEntity(id = initial?.id ?: 0, cropId = it.id, saleDate = date, quantityKg = kg.toDoubleOrZero(), pricePerKg = price.toDoubleOrZero(), buyerName = buyer, buyerPhone = phone, notes = initial?.notes.orEmpty())) }
     }) {
         CropSelector(crops, crop) { crop = it }
-        AppTextField(kg, { kg = it }, stringResource(R.string.field_quantity_kg))
-        AppTextField(price, { price = it }, stringResource(R.string.field_price_per_kg))
-        AppTextField(buyer, { buyer = it }, stringResource(R.string.field_buyer_name))
-        AppTextField(phone, { phone = it }, stringResource(R.string.field_buyer_phone))
-        ReadOnlyTextField(date, stringResource(R.string.field_sale_date))
+        AppTextField(kg, { kg = it }, stringResource(Res.string.field_quantity_kg))
+        AppTextField(price, { price = it }, stringResource(Res.string.field_price_per_kg))
+        AppTextField(buyer, { buyer = it }, stringResource(Res.string.field_buyer_name))
+        AppTextField(phone, { phone = it }, stringResource(Res.string.field_buyer_phone))
+        ReadOnlyTextField(date, stringResource(Res.string.field_sale_date))
     }
 }
 
@@ -993,9 +974,9 @@ fun FormDialog(title: String, onDismiss: () -> Unit, onConfirm: () -> Unit, cont
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(title) },
-        text = { Column(verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_10)), content = content) },
-        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(R.string.action_save)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        text = { Column(verticalArrangement = Arrangement.spacedBy(AppDimens.space10), content = content) },
+        confirmButton = { Button(onClick = onConfirm) { Text(stringResource(Res.string.action_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(Res.string.action_cancel)) } },
     )
 }
 
@@ -1004,7 +985,7 @@ fun CropSelector(crops: List<CropEntity>, selected: CropEntity?, onSelected: (Cr
     var expanded by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(selected?.name ?: stringResource(R.string.select_crop))
+            Text(selected?.name ?: stringResource(Res.string.select_crop))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             crops.forEach { crop ->
@@ -1016,7 +997,7 @@ fun CropSelector(crops: List<CropEntity>, selected: CropEntity?, onSelected: (Cr
 
 @Composable
 fun CategorySelector(selected: String, onSelected: (String) -> Unit) {
-    val categories = stringArrayResource(R.array.expense_categories)
+    val categories = expenseCategories
     var expanded by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
@@ -1051,10 +1032,10 @@ fun ReadOnlyTextField(value: String, label: String) {
 fun HeroCard(title: String, value: String, subtitle: String, colors: List<Color>) {
     Column(
         Modifier
-            .clip(RoundedCornerShape(dimensionResource(R.dimen.radius_hero)))
+            .clip(RoundedCornerShape(AppDimens.radiusHero))
             .background(Brush.linearGradient(colors))
             .fillMaxWidth()
-            .padding(dimensionResource(R.dimen.space_20)),
+            .padding(AppDimens.space20),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(title, color = Color.White.copy(alpha = 0.9f), style = MaterialTheme.typography.titleMedium)
@@ -1066,7 +1047,7 @@ fun HeroCard(title: String, value: String, subtitle: String, colors: List<Color>
 @Composable
 fun MetricCard(title: String, value: String, icon: ImageVector, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
     val cardContent: @Composable ColumnScope.() -> Unit = {
-        Column(Modifier.padding(dimensionResource(R.dimen.space_16)), verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_4)), horizontalAlignment = Alignment.CenterHorizontally) {
+        Column(Modifier.padding(AppDimens.space16), verticalArrangement = Arrangement.spacedBy(AppDimens.space4), horizontalAlignment = Alignment.CenterHorizontally) {
             Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Text(title, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
@@ -1083,7 +1064,7 @@ fun MetricCard(title: String, value: String, icon: ImageVector, modifier: Modifi
 fun SummaryCard(summary: CropSummary) {
     DetailCard(
         title = summary.cropName,
-        subtitle = stringResource(R.string.summary_subtitle_format, formatKg(summary.harvestedKg), rupees(summary.totalIncome), rupees(summary.totalExpenses)),
+        subtitle = stringResource(Res.string.summary_subtitle_format, formatKg(summary.harvestedKg), rupees(summary.totalIncome), rupees(summary.totalExpenses)),
         value = rupees(summary.profitLoss),
     )
 }
@@ -1091,8 +1072,8 @@ fun SummaryCard(summary: CropSummary) {
 @Composable
 fun DetailCard(title: String, subtitle: String, value: String, onClick: (() -> Unit)? = null) {
     val content: @Composable ColumnScope.() -> Unit = {
-        Row(Modifier.fillMaxWidth().padding(horizontal = dimensionResource(R.dimen.space_12), vertical = dimensionResource(R.dimen.space_10)), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_2))) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = AppDimens.space12, vertical = AppDimens.space10), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(AppDimens.space2)) {
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(subtitle, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
@@ -1100,26 +1081,16 @@ fun DetailCard(title: String, subtitle: String, value: String, onClick: (() -> U
         }
     }
     if (onClick == null) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(dimensionResource(R.dimen.space_2)), content = content)
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(AppDimens.space2), content = content)
     } else {
-        Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(dimensionResource(R.dimen.space_2)), content = content)
+        Card(onClick = onClick, colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), elevation = CardDefaults.cardElevation(AppDimens.space2), content = content)
     }
 }
 
 @Composable
 fun SectionTitle(title: String) {
-    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = dimensionResource(R.dimen.space_8)))
+    Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = AppDimens.space8))
 }
-
-fun today(): String = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-
-fun exportTimestamp(): String = SimpleDateFormat("yyyyMMdd_HHmm", Locale.getDefault()).format(Date())
-
-fun currentMonthKey(): String = today().take(7)
-
-fun currentMonthNumber(): Int = today().substring(5, 7).toIntOrNull() ?: 1
-
-fun currentYearKey(): String = today().take(4)
 
 fun monthLabel(month: Int?): String = MonthOptions.firstOrNull { it.number == month }?.label ?: "All Months"
 
@@ -1136,194 +1107,3 @@ fun rupees(value: Double): String = "Rs. ${"%,.2f".format(value)}"
 
 fun formatKg(value: Double): String = "${"%,.2f".format(value)} kg"
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Preview(name = "Farm Manager App", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun FarmManagerAppPreview() {
-    FarmTheme {
-        val previewModule = FarmModuleTab.Agri
-        val previewTheme = previewModule.themeColors()
-        Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = previewTheme.primaryContainer,
-                        titleContentColor = previewTheme.onPrimaryContainer,
-                    ),
-                )
-            },
-            floatingActionButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(dimensionResource(R.dimen.space_12))) {
-                    BottomDataActionButton(
-                        label = stringResource(R.string.action_import),
-                        icon = Icons.Default.UploadFile,
-                        buttonColor = Color(0xFF1B5E20),
-                        iconBackgroundColor = Color(0xFF0B3D0E),
-                        iconTint = Color.White,
-                        contentColor = Color.White,
-                        onClick = {},
-                    )
-                    BottomDataActionButton(
-                        label = stringResource(R.string.action_export),
-                        icon = Icons.Default.FileDownload,
-                        buttonColor = Color(0xFF263238),
-                        iconBackgroundColor = Color(0xFF11171A),
-                        iconTint = Color.White,
-                        contentColor = Color.White,
-                        onClick = {},
-                    )
-                }
-            },
-        ) { padding ->
-            Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                color = MaterialTheme.colorScheme.background,
-            ) {
-                DashboardScreen(
-                    state = previewFarmUiState(),
-                    selectedModule = previewModule,
-                    onModuleSelected = {},
-                    selectedAgriTab = FarmTab.Dashboard,
-                    onAgriTabSelected = {},
-                    onShare = {},
-                    onAdd = {},
-                    onImportSection = {},
-                    onExportSection = {},
-                    onEditCrop = {},
-                    onEditExpense = {},
-                    onEditHarvest = {},
-                    onEditSale = {},
-                )
-            }
-        }
-    }
-}
-
-@Preview(name = "Submenu - Crops", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun CropsSubMenuPreview() {
-    FarmManagerSubMenuPreview(FarmTab.Crops)
-}
-
-@Preview(name = "Submenu - Expenses", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun ExpensesSubMenuPreview() {
-    FarmManagerSubMenuPreview(FarmTab.Expenses)
-}
-
-@Preview(name = "Submenu - Harvest", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun HarvestSubMenuPreview() {
-    FarmManagerSubMenuPreview(FarmTab.Harvest)
-}
-
-@Preview(name = "Submenu - Sales", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun SalesSubMenuPreview() {
-    FarmManagerSubMenuPreview(FarmTab.Sales)
-}
-
-@Preview(name = "Submenu - Reports", showBackground = true, widthDp = 390, heightDp = 844)
-@Composable
-fun ReportsSubMenuPreview() {
-    FarmManagerSubMenuPreview(FarmTab.Reports)
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FarmManagerSubMenuPreview(selectedTab: FarmTab) {
-    FarmTheme {
-        val previewModule = FarmModuleTab.Agri
-        val previewTheme = previewModule.themeColors()
-        Scaffold(
-            topBar = {
-                CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.app_name), fontWeight = FontWeight.Bold) },
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                        containerColor = previewTheme.primaryContainer,
-                        titleContentColor = previewTheme.onPrimaryContainer,
-                    ),
-                )
-            },
-        ) { padding ->
-            Surface(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                color = MaterialTheme.colorScheme.background,
-            ) {
-                DashboardScreen(
-                    state = previewFarmUiState(),
-                    selectedModule = previewModule,
-                    onModuleSelected = {},
-                    selectedAgriTab = selectedTab,
-                    onAgriTabSelected = {},
-                    onShare = {},
-                    onAdd = {},
-                    onImportSection = {},
-                    onExportSection = {},
-                    onEditCrop = {},
-                    onEditExpense = {},
-                    onEditHarvest = {},
-                    onEditSale = {},
-                )
-            }
-        }
-    }
-}
-
-private fun previewFarmUiState(): FarmUiState {
-    val crops = listOf(
-        CropEntity(
-            id = 1,
-            name = "Tomato",
-            variety = "Hybrid",
-            fieldName = "North Field",
-            area = 1.5,
-            season = "Summer",
-            sowingDate = "2026-05-01",
-            notes = "Drip irrigation",
-        ),
-        CropEntity(
-            id = 2,
-            name = "Chilli",
-            variety = "Guntur",
-            fieldName = "East Field",
-            area = 0.75,
-            season = "Summer",
-            sowingDate = "2026-05-08",
-        ),
-    )
-    val expenses = listOf(
-        ExpenseEntity(1, 1, "Seed", null, 3200.0, "2026-05-02", "Nursery seeds"),
-        ExpenseEntity(2, 1, "Fertilizer", 1, 1800.0, "2026-05-10", "First round"),
-        ExpenseEntity(3, 2, "Labor", null, 2400.0, "2026-05-12", "Planting labor"),
-    )
-    val harvests = listOf(
-        HarvestEntity(1, 1, "2026-05-25", 420.0, "First harvest"),
-        HarvestEntity(2, 2, "2026-05-28", 130.0, "Initial picking"),
-    )
-    val sales = listOf(
-        SaleEntity(1, 1, "2026-05-25", 300.0, 24.0, "Local Market", "9876543210"),
-        SaleEntity(2, 2, "2026-05-28", 100.0, 42.0, "Village Buyer", "9876501234"),
-    )
-    val summaries = crops.map { crop ->
-        CropSummary(
-            cropId = crop.id,
-            cropName = crop.name,
-            totalExpenses = expenses.filter { it.cropId == crop.id }.sumOf { it.amount },
-            totalIncome = sales.filter { it.cropId == crop.id }.sumOf { it.totalIncome },
-            harvestedKg = harvests.filter { it.cropId == crop.id }.sumOf { it.quantityKg },
-        )
-    }
-    return FarmUiState(
-        crops = crops,
-        expenses = expenses,
-        harvests = harvests,
-        sales = sales,
-        summaries = summaries,
-    )
-}
